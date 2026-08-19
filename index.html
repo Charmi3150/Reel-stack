@@ -267,10 +267,20 @@
     <div id="stage"><canvas id="canvas"></canvas></div>
     <div id="hiddenVideos"></div>
 
+    <button class="secondary" id="playToggle">▶ Beweging tonen</button>
+    <div id="perfWarning" class="hint" style="display:none;color:#ff7a6b;"></div>
+
     <div id="zoomControls"></div>
     <div class="hint" style="margin-top:0;">Sleep op de video zelf om te verschuiven binnen zijn rij. Gebruik de schuiver om in/uit te zoomen.</div>
 
-    <button class="primary" id="exportBtn" style="margin-top:14px;">Exporteren als video</button>
+    <div class="zoomrow" style="margin-top:14px;">
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-dim);">
+        <input type="checkbox" id="audioToggle" style="accent-color:var(--accent);">
+        Geluid meenemen (trager bij veel video's)
+      </label>
+    </div>
+
+    <button class="primary" id="exportBtn" style="margin-top:8px;">Exporteren als video</button>
     <div class="status" id="status"></div>
 
     <div id="resultBox">
@@ -322,7 +332,7 @@ document.getElementById('minus').addEventListener('click', ()=>{
   if(rowCount>2){ rowCount--; syncRows(); }
 });
 document.getElementById('plus').addEventListener('click', ()=>{
-  if(rowCount<10){ rowCount++; syncRows(); }
+  if(rowCount<25){ rowCount++; syncRows(); }
 });
 canvasW.addEventListener('input', resetBuild);
 canvasH.addEventListener('input', resetBuild);
@@ -377,6 +387,7 @@ function resetBuild(){
 }
 
 function stopLiveLoop(){
+  previewPlaying = false;
   if(liveLoopId){ cancelAnimationFrame(liveLoopId); liveLoopId=null; }
   clips.forEach(c=>{ try{ c.el.pause(); }catch(e){} });
   if(recorder && recorder.state==='recording'){ try{ recorder.stop(); }catch(e){} }
@@ -409,8 +420,17 @@ buildBtn.addEventListener('click', async ()=>{
     buildBtn.disabled = false;
     buildBtn.textContent = 'Live voorbeeld bouwen';
     buildZoomControls();
-    startLivePreview();
+    drawStaticFrame();
     setupDrag();
+
+    const perfWarning = document.getElementById('perfWarning');
+    if(rowCount > 8){
+      perfWarning.style.display='block';
+      perfWarning.textContent = `⚠ ${rowCount} video's tegelijk afspelen/decoderen is zwaar voor een telefoon. De statische weergave (nu actief) blijft vlot om te positioneren; "Beweging tonen" en exporteren kunnen haperen of traag zijn. Zet geluid uit bij export voor de beste kans op succes.`;
+    } else {
+      perfWarning.style.display='none';
+    }
+
     stagePanel.scrollIntoView({behavior:'smooth', block:'start'});
   }catch(err){
     statusEl.className='status err';
@@ -488,7 +508,16 @@ function drawFrame(){
   });
 }
 
+function drawStaticFrame(){
+  // draw current (paused) frames only — cheap, no simultaneous decoding load
+  clips.forEach(c=>{ try{ c.el.pause(); }catch(e){} });
+  drawFrame();
+}
+
+let previewPlaying = false;
 function startLivePreview(){
+  previewPlaying = true;
+  playToggle.textContent = '⏸ Beweging stoppen';
   clips.forEach(c=>{
     c.el.currentTime = 0;
     const p = c.el.play();
@@ -496,10 +525,24 @@ function startLivePreview(){
   });
   const loop = ()=>{
     drawFrame();
-    liveLoopId = requestAnimationFrame(loop);
+    if(previewPlaying) liveLoopId = requestAnimationFrame(loop);
   };
   loop();
 }
+
+function stopPreviewPlayback(){
+  previewPlaying = false;
+  playToggle.textContent = '▶ Beweging tonen';
+  if(liveLoopId){ cancelAnimationFrame(liveLoopId); liveLoopId=null; }
+  clips.forEach(c=>{ try{ c.el.pause(); }catch(e){} });
+  drawFrame();
+}
+
+const playToggle = document.getElementById('playToggle');
+playToggle.addEventListener('click', ()=>{
+  if(previewPlaying) stopPreviewPlayback();
+  else startLivePreview();
+});
 
 function buildZoomControls(){
   zoomControls.innerHTML='';
@@ -515,11 +558,13 @@ function buildZoomControls(){
     row.querySelector('input').addEventListener('input', (e)=>{
       c.userScale = parseInt(e.target.value)/100;
       recenter(c);
+      if(!previewPlaying) drawFrame();
     });
     row.querySelector('button').addEventListener('click', ()=>{
       c.userScale = 1;
       row.querySelector('input').value = 100;
       recenter(c);
+      if(!previewPlaying) drawFrame();
     });
   });
 }
@@ -548,6 +593,7 @@ function setupDrag(){
     c.dx = dragging.startDx + dxPix;
     c.dy = dragging.startDy + dyPix;
     clampClip(c);
+    if(!previewPlaying) drawFrame();
   };
   const end = ()=>{ dragging=null; };
   canvas.onpointerup = end;
@@ -577,25 +623,31 @@ exportBtn.addEventListener('click', async ()=>{
   statusEl.textContent = 'Bezig met exporteren...';
 
   try{
-    if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-    if(audioCtx.state==='suspended') await audioCtx.resume();
+    const wantAudio = document.getElementById('audioToggle').checked;
+    let audioTracks = [];
+    if(wantAudio){
+      if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+      if(audioCtx.state==='suspended') await audioCtx.resume();
 
-    const dest = audioCtx.createMediaStreamDestination();
-    clips.forEach(c=>{
-      try{
-        let src = audioSourceMap.get(c.el);
-        if(!src){
-          src = audioCtx.createMediaElementSource(c.el);
-          audioSourceMap.set(c.el, src);
-        }
-        src.connect(dest);
-      }catch(e){ /* no audio track or already routed */ }
-    });
+      const dest = audioCtx.createMediaStreamDestination();
+      clips.forEach(c=>{
+        try{
+          let src = audioSourceMap.get(c.el);
+          if(!src){
+            src = audioCtx.createMediaElementSource(c.el);
+            audioSourceMap.set(c.el, src);
+          }
+          src.connect(dest);
+        }catch(e){ /* no audio track or already routed */ }
+      });
+      audioTracks = dest.stream.getAudioTracks();
+    }
 
-    const canvasStream = canvas.captureStream(30);
+    const fps = rowCount > 8 ? 20 : 30;
+    const canvasStream = canvas.captureStream(fps);
     const combined = new MediaStream([
       ...canvasStream.getVideoTracks(),
-      ...dest.stream.getAudioTracks()
+      ...audioTracks
     ]);
 
     const mimeType = pickMimeType();
@@ -621,8 +673,8 @@ exportBtn.addEventListener('click', async ()=>{
       statusEl.className='status';
       statusEl.textContent = 'Klaar.';
       exportBtn.disabled = false;
-      // resume the muted live preview loop
-      startLivePreview();
+      // back to cheap static preview
+      drawStaticFrame();
     };
 
     stopLiveLoop();
@@ -636,16 +688,18 @@ exportBtn.addEventListener('click', async ()=>{
     const dur = longest.duration || 0;
     const check = setInterval(()=>{
       if(recorder.state!=='recording'){ clearInterval(check); return; }
-      if(longest.currentTime >= dur - 0.05){
+      const elapsed = longest.currentTime || 0;
+      statusEl.textContent = `Bezig met exporteren... ${elapsed.toFixed(1)}s / ${dur.toFixed(1)}s`;
+      if(elapsed >= dur - 0.05){
         clearInterval(check);
         recorder.stop();
       }
-    }, 100);
+    }, 150);
   }catch(err){
     statusEl.className='status err';
     statusEl.textContent = 'Export mislukt: ' + err.message;
     exportBtn.disabled = false;
-    startLivePreview();
+    drawStaticFrame();
   }
 });
 </script>
