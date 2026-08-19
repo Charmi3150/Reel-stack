@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stack Reel Tool</title>
+<style>
+  :root{
+    --bg:#0d0e10;
+    --panel:#17181b;
+    --line:#2a2c31;
+    --accent:#e8ff5a;
+    --accent-dim:#9aa832;
+    --text:#f2f2ee;
+    --text-dim:#8c8f94;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Courier New', ui-monospace, monospace;
+    padding:24px 16px 60px;
+  }
+  .wrap{max-width:720px;margin:0 auto;}
+  h1{
+    font-size:20px;
+    letter-spacing:0.5px;
+    margin:0 0 4px;
+    display:flex;align-items:center;gap:10px;
+  }
+  h1 .tag{
+    font-size:11px;
+    color:var(--bg);
+    background:var(--accent);
+    padding:2px 8px;
+    border-radius:2px;
+    font-weight:bold;
+  }
+  .sub{color:var(--text-dim);font-size:13px;margin:0 0 24px;}
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:18px;
+    margin-bottom:16px;
+  }
+  .panel h2{
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:1.5px;
+    color:var(--accent);
+    margin:0 0 14px;
+  }
+  .row{display:flex;gap:10px;margin-bottom:10px;}
+  .field{flex:1;}
+  label{display:block;font-size:11px;color:var(--text-dim);margin-bottom:5px;}
+  input[type=number]{
+    width:100%;
+    background:#0d0e10;
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:9px 10px;
+    border-radius:3px;
+    font-family:inherit;
+    font-size:14px;
+  }
+  input[type=number]:focus{outline:none;border-color:var(--accent);}
+  .presets{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+  .preset-btn{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--text-dim);
+    font-size:11px;
+    padding:5px 9px;
+    border-radius:3px;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .preset-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+  .stepper{display:flex;align-items:center;gap:12px;}
+  .stepper button{
+    width:34px;height:34px;
+    background:#0d0e10;border:1px solid var(--line);
+    color:var(--accent);font-size:16px;border-radius:3px;cursor:pointer;
+  }
+  .stepper span{font-size:18px;min-width:20px;text-align:center;}
+
+  .slot{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    border:1px dashed var(--line);
+    border-radius:3px;
+    padding:10px;
+    margin-bottom:8px;
+    background:#0d0e10;
+  }
+  .slot .n{
+    width:22px;height:22px;flex-shrink:0;
+    background:var(--line);color:var(--text);
+    font-size:11px;display:flex;align-items:center;justify-content:center;
+    border-radius:2px;
+  }
+  .slot.filled .n{background:var(--accent);color:#0d0e10;}
+  .slot input[type=file]{
+    flex:1;
+    color:var(--text-dim);
+    font-size:11px;
+    font-family:inherit;
+  }
+  .slot .fname{flex:1;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  button.primary{
+    width:100%;
+    background:var(--accent);
+    color:#0d0e10;
+    border:none;
+    padding:13px;
+    font-weight:bold;
+    font-size:13px;
+    letter-spacing:0.5px;
+    text-transform:uppercase;
+    border-radius:3px;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  button.primary:disabled{background:var(--line);color:var(--text-dim);cursor:not-allowed;}
+  button.primary:not(:disabled):hover{background:#f4ff8a;}
+
+  button.secondary{
+    width:100%;
+    background:transparent;
+    color:var(--accent);
+    border:1px solid var(--accent-dim);
+    padding:11px;
+    font-size:12px;
+    border-radius:3px;
+    cursor:pointer;
+    font-family:inherit;
+    margin-top:8px;
+  }
+  button.secondary:disabled{border-color:var(--line);color:var(--text-dim);cursor:not-allowed;}
+
+  #stage{
+    display:flex;
+    justify-content:center;
+    background:#000;
+    border-radius:4px;
+    overflow:hidden;
+    margin-bottom:12px;
+    position:relative;
+  }
+  #canvas{max-width:100%;height:auto;display:block;background:#000;}
+
+  .status{
+    font-size:12px;
+    color:var(--text-dim);
+    text-align:center;
+    margin:8px 0 0;
+    min-height:16px;
+  }
+  .status.active{color:var(--accent);}
+
+  #downloadLink{
+    display:none;
+    text-align:center;
+    background:var(--accent);
+    color:#0d0e10;
+    text-decoration:none;
+    font-weight:bold;
+    padding:13px;
+    border-radius:3px;
+    margin-top:10px;
+    font-size:13px;
+  }
+
+  .hint{font-size:11px;color:var(--text-dim);line-height:1.5;margin-top:10px;}
+  .filmline{
+    height:1px;
+    background:repeating-linear-gradient(90deg,var(--line) 0 6px, transparent 6px 12px);
+    margin:20px 0;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Stack Reel <span class="tag">Carmi</span></h1>
+  <p class="sub">Zet meerdere video's strak boven elkaar in één canvas — zonder spatie, allemaal exact dezelfde grootte.</p>
+
+  <div class="panel">
+    <h2>1 — Canvas</h2>
+    <div class="row">
+      <div class="field">
+        <label>Breedte (px)</label>
+        <input type="number" id="canvasW" value="1080" min="100" step="1">
+      </div>
+      <div class="field">
+        <label>Hoogte (px)</label>
+        <input type="number" id="canvasH" value="1920" min="100" step="1">
+      </div>
+    </div>
+    <div class="presets">
+      <button class="preset-btn" data-w="1080" data-h="1920">9:16 Reel</button>
+      <button class="preset-btn" data-w="1080" data-h="1350">4:5 Post</button>
+      <button class="preset-btn" data-w="1080" data-h="1080">1:1 Vierkant</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>2 — Aantal video's boven elkaar</h2>
+    <div class="stepper">
+      <button id="minus">−</button>
+      <span id="rowCount">4</span>
+      <button id="plus">+</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>3 — Video's kiezen</h2>
+    <div id="slots"></div>
+    <div class="hint">Elke rij krijgt exact dezelfde hoogte (canvas hoogte ÷ aantal rijen) en de volledige breedte. Video's worden gecenterd uitgesneden (cover) zodat er geen witruimte ontstaat.</div>
+  </div>
+
+  <button class="primary" id="buildBtn" disabled>Voorbeeld bouwen</button>
+
+  <div class="panel" id="stagePanel" style="display:none;">
+    <h2>Voorbeeld</h2>
+    <div id="stage"><canvas id="canvas"></canvas></div>
+    <button class="secondary" id="playBtn">▶ Afspelen</button>
+    <div class="status" id="status"></div>
+    <button class="primary" id="exportBtn" style="margin-top:10px;">Exporteren als video</button>
+    <a id="downloadLink">⬇ Download reel.webm</a>
+  </div>
+
+  <div class="filmline"></div>
+  <div class="hint">Tip: gebruik video's van vergelijkbare lengte voor het beste resultaat. Kortere video's lussen automatisch door tot de langste is afgelopen.</div>
+</div>
+
+<script>
+const canvasW = document.getElementById('canvasW');
+const canvasH = document.getElementById('canvasH');
+const rowCountEl = document.getElementById('rowCount');
+const slotsEl = document.getElementById('slots');
+const buildBtn = document.getElementById('buildBtn');
+const stagePanel = document.getElementById('stagePanel');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const playBtn = document.getElementById('playBtn');
+const exportBtn = document.getElementById('exportBtn');
+const statusEl = document.getElementById('status');
+const downloadLink = document.getElementById('downloadLink');
+
+let rowCount = 4;
+let files = new Array(rowCount).fill(null);
+let videos = [];
+let playing = false;
+let recorder = null;
+let audioCtx = null;
+
+document.querySelectorAll('.preset-btn').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    canvasW.value = b.dataset.w;
+    canvasH.value = b.dataset.h;
+    resetBuild();
+  });
+});
+
+document.getElementById('minus').addEventListener('click', ()=>{
+  if(rowCount>2){ rowCount--; syncRows(); }
+});
+document.getElementById('plus').addEventListener('click', ()=>{
+  if(rowCount<10){ rowCount++; syncRows(); }
+});
+canvasW.addEventListener('input', resetBuild);
+canvasH.addEventListener('input', resetBuild);
+
+function syncRows(){
+  rowCountEl.textContent = rowCount;
+  const newFiles = new Array(rowCount).fill(null);
+  for(let i=0;i<Math.min(rowCount, files.length);i++) newFiles[i]=files[i];
+  files = newFiles;
+  renderSlots();
+  resetBuild();
+}
+
+function renderSlots(){
+  slotsEl.innerHTML = '';
+  for(let i=0;i<rowCount;i++){
+    const slot = document.createElement('div');
+    slot.className = 'slot' + (files[i] ? ' filled' : '');
+    slot.innerHTML = `
+      <div class="n">${i+1}</div>
+      ${files[i]
+        ? `<div class="fname">${files[i].name}</div><input type="file" accept="video/*" data-idx="${i}" style="display:none">`
+        : `<input type="file" accept="video/*" data-idx="${i}">`
+      }
+    `;
+    slotsEl.appendChild(slot);
+    const input = slot.querySelector('input[type=file]');
+    if(files[i]){
+      slot.addEventListener('click', ()=> input.click());
+    }
+    input.addEventListener('change', (e)=>{
+      const f = e.target.files[0];
+      if(f){
+        files[i] = f;
+        renderSlots();
+        resetBuild();
+      }
+    });
+  }
+  buildBtn.disabled = !files.every(f=>f);
+}
+
+function resetBuild(){
+  stagePanel.style.display='none';
+  buildBtn.disabled = !files.every(f=>f);
+  statusEl.textContent='';
+  downloadLink.style.display='none';
+  pauseAll();
+}
+
+function pauseAll(){
+  playing = false;
+  videos.forEach(v=>{ try{v.pause();}catch(e){} });
+  if(recorder && recorder.state==='recording') recorder.stop();
+  playBtn.textContent = '▶ Afspelen';
+}
+
+renderSlots();
+
+buildBtn.addEventListener('click', async ()=>{
+  buildBtn.disabled = true;
+  buildBtn.textContent = 'Laden...';
+  canvas.width = parseInt(canvasW.value);
+  canvas.height = parseInt(canvasH.value);
+
+  videos = await Promise.all(files.map(f => loadVideo(f)));
+  stagePanel.style.display='block';
+  buildBtn.disabled = false;
+  buildBtn.textContent = 'Voorbeeld bouwen';
+  drawStaticPreview();
+  stagePanel.scrollIntoView({behavior:'smooth', block:'start'});
+});
+
+function loadVideo(file){
+  return new Promise((resolve)=>{
+    const v = document.createElement('video');
+    v.src = URL.createObjectURL(file);
+    v.muted = true;
+    v.playsInline = true;
+    v.loop = true;
+    v.addEventListener('loadeddata', ()=> resolve(v), {once:true});
+  });
+}
+
+function drawStripLayout(){
+  const stripH = canvas.height / rowCount;
+  return videos.map((v,i)=>({
+    v, y: i*stripH, h: stripH
+  }));
+}
+
+function drawFrame(){
+  const strips = drawStripLayout();
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  strips.forEach(({v,y,h})=>{
+    const vw = v.videoWidth, vh = v.videoHeight;
+    if(!vw||!vh) return;
+    const scale = Math.max(canvas.width / vw, h / vh);
+    const dw = vw*scale, dh = vh*scale;
+    const dx = (canvas.width - dw)/2;
+    const dy = y + (h - dh)/2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, y, canvas.width, h);
+    ctx.clip();
+    ctx.drawImage(v, dx, dy, dw, dh);
+    ctx.restore();
+  });
+}
+
+function drawStaticPreview(){
+  videos.forEach(v=>{ v.currentTime = 0.05; });
+  setTimeout(drawFrame, 150);
+}
+
+let rafId = null;
+function loop(){
+  drawFrame();
+  if(playing) rafId = requestAnimationFrame(loop);
+}
+
+playBtn.addEventListener('click', ()=>{
+  if(playing){
+    pauseAll();
+  }else{
+    playing = true;
+    playBtn.textContent = '⏸ Pauzeren';
+    videos.forEach(v=>{ v.currentTime = 0; v.play(); });
+    loop();
+    monitorLongest(false);
+  }
+});
+
+function longestDuration(){
+  return Math.max(...videos.map(v=>v.duration||0));
+}
+
+function monitorLongest(recording){
+  const longest = videos.reduce((a,b)=> (b.duration||0) > (a.duration||0) ? b : a);
+  const dur = longest.duration || 0;
+  const check = setInterval(()=>{
+    if(!playing){ clearInterval(check); return; }
+    if(longest.currentTime >= dur - 0.05){
+      clearInterval(check);
+      pauseAll();
+      if(recording && recorder && recorder.state==='recording'){
+        recorder.stop();
+      }
+    }
+  }, 100);
+}
+
+exportBtn.addEventListener('click', async ()=>{
+  exportBtn.disabled = true;
+  downloadLink.style.display='none';
+  statusEl.className='status active';
+  statusEl.textContent = 'Bezig met exporteren...';
+
+  if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  const dest = audioCtx.createMediaStreamDestination();
+  videos.forEach(v=>{
+    try{
+      const src = audioCtx.createMediaElementSource(v);
+      src.connect(dest);
+    }catch(e){ /* already connected or no audio */ }
+  });
+
+  const canvasStream = canvas.captureStream(30);
+  const audioTracks = dest.stream.getAudioTracks();
+  const combined = new MediaStream([...canvasStream.getVideoTracks(), ...audioTracks]);
+
+  const chunks = [];
+  const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+    ? 'video/webm;codecs=vp9,opus' : 'video/webm';
+  recorder = new MediaRecorder(combined, {mimeType});
+  recorder.ondataavailable = e => { if(e.data.size>0) chunks.push(e.data); };
+  recorder.onstop = () => {
+    const blob = new Blob(chunks, {type:'video/webm'});
+    const url = URL.createObjectURL(blob);
+    downloadLink.href = url;
+    downloadLink.download = 'stacked-reel.webm';
+    downloadLink.style.display = 'block';
+    statusEl.className='status';
+    statusEl.textContent = 'Klaar — download hieronder.';
+    exportBtn.disabled = false;
+  };
+
+  recorder.start();
+  playing = true;
+  playBtn.textContent = '⏸ Pauzeren';
+  videos.forEach(v=>{ v.currentTime = 0; v.play(); });
+  loop();
+  monitorLongest(true);
+});
+</script>
+</body>
+</html>
